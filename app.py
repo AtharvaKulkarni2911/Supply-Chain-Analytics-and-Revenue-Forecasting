@@ -1,586 +1,855 @@
-{
- "cells": [
-  {
-   "cell_type": "code",
-   "execution_count": 1,
-   "id": "5837d612-c2cd-4a9b-9cc5-7510f588917e",
-   "metadata": {},
-   "outputs": [
-    {
-     "name": "stderr",
-     "output_type": "stream",
-     "text": [
-      "2026-04-17 13:44:17.087 \n",
-      "  \u001b[33m\u001b[1mWarning:\u001b[0m to view this Streamlit app on a browser, run it with the following\n",
-      "  command:\n",
-      "\n",
-      "    streamlit run C:\\ProgramData\\anaconda3\\Lib\\site-packages\\ipykernel_launcher.py [ARGUMENTS]\n",
-      "2026-04-17 13:44:17.092 No runtime found, using MemoryCacheStorageManager\n",
-      "2026-04-17 13:44:17.100 No runtime found, using MemoryCacheStorageManager\n",
-      "2026-04-17 13:44:27.843 Session state does not function when running a script without `streamlit run`\n"
-     ]
+"""
+Supply Chain Analytics & Revenue Forecasting
+Capstone 2 — Streamlit Web App
+Author: Atharva
+"""
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+import seaborn as sns
+import warnings
+import os
+
+warnings.filterwarnings("ignore")
+
+# ─────────────────────────────────────────────
+# PAGE CONFIG
+# ─────────────────────────────────────────────
+st.set_page_config(
+    page_title="Supply Chain Analytics",
+    page_icon="📦",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ─────────────────────────────────────────────
+# CUSTOM CSS
+# ─────────────────────────────────────────────
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    .metric-card {
+        background: #1e293b;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        border: 1px solid #334155;
     }
-   ],
-   "source": [
-    "\"\"\"\n",
-    "Capstone 2 — Supply Chain Analytics & Revenue Forecasting\n",
-    "Streamlit Web App | app.py\n",
-    "Author: Atharva\n",
-    "\"\"\"\n",
-    "\n",
-    "import streamlit as st\n",
-    "import pandas as pd\n",
-    "import numpy as np\n",
-    "import plotly.graph_objects as go\n",
-    "import plotly.express as px\n",
-    "from plotly.subplots import make_subplots\n",
-    "import warnings\n",
-    "warnings.filterwarnings('ignore')\n",
-    "\n",
-    "# ── PAGE CONFIG ────────────────────────────────────────────────────────────\n",
-    "st.set_page_config(\n",
-    "    page_title=\"Supply Chain Analytics\",\n",
-    "    page_icon=\"📦\",\n",
-    "    layout=\"wide\",\n",
-    "    initial_sidebar_state=\"expanded\"\n",
-    ")\n",
-    "\n",
-    "# ── CUSTOM CSS ─────────────────────────────────────────────────────────────\n",
-    "st.markdown(\"\"\"\n",
-    "<style>\n",
-    "    .metric-card {\n",
-    "        background: linear-gradient(135deg, #1F4E79 0%, #2E75B6 100%);\n",
-    "        border-radius: 12px;\n",
-    "        padding: 20px;\n",
-    "        color: white;\n",
-    "        text-align: center;\n",
-    "        margin-bottom: 10px;\n",
-    "    }\n",
-    "    .metric-card .value { font-size: 28px; font-weight: 700; }\n",
-    "    .metric-card .label { font-size: 13px; opacity: 0.85; margin-top: 4px; }\n",
-    "    .section-header {\n",
-    "        background: #EBF3FB;\n",
-    "        border-left: 4px solid #2E75B6;\n",
-    "        padding: 8px 16px;\n",
-    "        border-radius: 0 8px 8px 0;\n",
-    "        font-weight: 600;\n",
-    "        color: #1F4E79;\n",
-    "        margin-bottom: 16px;\n",
-    "    }\n",
-    "    .stMetric { background: #F5F9FD; border-radius: 8px; padding: 12px; }\n",
-    "</style>\n",
-    "\"\"\", unsafe_allow_html=True)\n",
-    "\n",
-    "# ── DATA LOADERS ───────────────────────────────────────────────────────────\n",
-    "@st.cache_data\n",
-    "def load_data():\n",
-    "    master     = pd.read_csv('master_dataset.csv')\n",
-    "    monthly    = pd.read_csv('monthly_revenue.csv')\n",
-    "    forecast   = pd.read_csv('forecast_next12months.csv')\n",
-    "    evaluation = pd.read_csv('forecast_evaluation.csv')\n",
-    "    metrics    = pd.read_csv('model_metrics.csv')\n",
-    "\n",
-    "    master['order_purchase_timestamp'] = pd.to_datetime(master['order_purchase_timestamp'], errors='coerce')\n",
-    "    monthly['ds']    = pd.to_datetime(monthly['ds'])\n",
-    "    forecast['ds']   = pd.to_datetime(forecast['ds'])\n",
-    "    evaluation['ds'] = pd.to_datetime(evaluation['ds'])\n",
-    "\n",
-    "    return master, monthly, forecast, evaluation, metrics\n",
-    "\n",
-    "# Load with spinner on first run\n",
-    "with st.spinner(\"Loading data...\"):\n",
-    "    try:\n",
-    "        master, monthly, forecast, evaluation, metrics = load_data()\n",
-    "        data_loaded = True\n",
-    "    except Exception as e:\n",
-    "        data_loaded = False\n",
-    "        st.error(f\"Could not load data files: {e}\\nMake sure all CSV files are in the same folder as app.py\")\n",
-    "\n",
-    "# ── SIDEBAR ────────────────────────────────────────────────────────────────\n",
-    "st.sidebar.image(\"https://img.icons8.com/color/96/000000/delivery.png\", width=80)\n",
-    "st.sidebar.title(\"📦 Supply Chain Analytics\")\n",
-    "st.sidebar.markdown(\"---\")\n",
-    "\n",
-    "page = st.sidebar.radio(\n",
-    "    \"Navigate\",\n",
-    "    [\"🏠 Overview\",\n",
-    "     \"📈 Revenue Forecast\",\n",
-    "     \"🔍 EDA — Trends\",\n",
-    "     \"🏷️ EDA — Categories\",\n",
-    "     \"🗺️ EDA — Geography\",\n",
-    "     \"🚚 EDA — Delivery\",\n",
-    "     \"🤖 Model Metrics\"]\n",
-    ")\n",
-    "\n",
-    "st.sidebar.markdown(\"---\")\n",
-    "if data_loaded:\n",
-    "    st.sidebar.success(f\"✅ Data loaded\\n{master.shape[0]:,} records\")\n",
-    "st.sidebar.markdown(\"**Model:** Facebook Prophet\")\n",
-    "st.sidebar.markdown(\"**Forecast:** Next 12 months\")\n",
-    "st.sidebar.markdown(\"---\")\n",
-    "st.sidebar.caption(\"Capstone Project 2 | Atharva\")\n",
-    "\n",
-    "if not data_loaded:\n",
-    "    st.stop()\n",
-    "\n",
-    "# ── HELPERS ────────────────────────────────────────────────────────────────\n",
-    "delivered = master[master['order_status'] == 'delivered'].copy()\n",
-    "\n",
-    "def card(label, value):\n",
-    "    return f\"\"\"\n",
-    "    <div class=\"metric-card\">\n",
-    "        <div class=\"value\">{value}</div>\n",
-    "        <div class=\"label\">{label}</div>\n",
-    "    </div>\"\"\"\n",
-    "\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "# PAGE 1 — OVERVIEW\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "if page == \"🏠 Overview\":\n",
-    "    st.title(\"🏠 Supply Chain Dashboard — Overview\")\n",
-    "    st.markdown(\"**Brazilian E-Commerce Analytics | 2016–2026**\")\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    # KPI Row\n",
-    "    col1, col2, col3, col4 = st.columns(4)\n",
-    "    with col1:\n",
-    "        st.metric(\"Total Orders\", f\"{master['order_id'].nunique():,}\")\n",
-    "    with col2:\n",
-    "        st.metric(\"Total Revenue\", f\"R${delivered['item_revenue'].sum()/1e6:.1f}M\")\n",
-    "    with col3:\n",
-    "        st.metric(\"Avg Order Value\", f\"R${delivered['item_revenue'].mean():,.0f}\")\n",
-    "    with col4:\n",
-    "        st.metric(\"On-Time Rate\", f\"{delivered['on_time_delivery'].mean()*100:.1f}%\")\n",
-    "\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    col1, col2, col3, col4 = st.columns(4)\n",
-    "    with col1:\n",
-    "        st.metric(\"Total Customers\", f\"{master['customer_id'].nunique():,}\")\n",
-    "    with col2:\n",
-    "        st.metric(\"Avg Delivery Days\", f\"{delivered['delivery_days'].mean():.1f}\")\n",
-    "    with col3:\n",
-    "        total_cats = master['product_category_name'].nunique()\n",
-    "        st.metric(\"Product Categories\", f\"{total_cats}\")\n",
-    "    with col4:\n",
-    "        cancel_pct = (master['order_status'] == 'canceled').mean() * 100\n",
-    "        st.metric(\"Cancellation Rate\", f\"{cancel_pct:.1f}%\")\n",
-    "\n",
-    "    st.markdown(\"---\")\n",
-    "    st.subheader(\"📅 Monthly Revenue Overview\")\n",
-    "    fig = go.Figure()\n",
-    "    fig.add_trace(go.Scatter(\n",
-    "        x=monthly['ds'], y=monthly['y'],\n",
-    "        fill='tozeroy', fillcolor='rgba(46, 117, 182, 0.15)',\n",
-    "        line=dict(color='#2E75B6', width=2),\n",
-    "        name='Monthly Revenue'\n",
-    "    ))\n",
-    "    fig.update_layout(\n",
-    "        height=350,\n",
-    "        xaxis_title=\"Date\", yaxis_title=\"Revenue (R$)\",\n",
-    "        yaxis_tickformat='R$,.0f',\n",
-    "        margin=dict(l=20, r=20, t=20, b=20),\n",
-    "        hovermode='x unified'\n",
-    "    )\n",
-    "    st.plotly_chart(fig, use_container_width=True)\n",
-    "\n",
-    "    col1, col2 = st.columns(2)\n",
-    "    with col1:\n",
-    "        st.subheader(\"📊 Order Status\")\n",
-    "        status_counts = master['order_status'].value_counts()\n",
-    "        fig2 = px.pie(values=status_counts.values, names=status_counts.index,\n",
-    "                      color_discrete_sequence=px.colors.qualitative.Set2)\n",
-    "        fig2.update_layout(height=300, margin=dict(l=0, r=0, t=20, b=0))\n",
-    "        st.plotly_chart(fig2, use_container_width=True)\n",
-    "\n",
-    "    with col2:\n",
-    "        st.subheader(\"💳 Payment Types\")\n",
-    "        pay_counts = master['payment_type'].value_counts()\n",
-    "        fig3 = px.bar(x=pay_counts.values, y=pay_counts.index, orientation='h',\n",
-    "                      color_discrete_sequence=['#2E75B6'])\n",
-    "        fig3.update_layout(height=300, margin=dict(l=0, r=20, t=20, b=0),\n",
-    "                            xaxis_title=\"Orders\", yaxis_title=\"\")\n",
-    "        st.plotly_chart(fig3, use_container_width=True)\n",
-    "\n",
-    "\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "# PAGE 2 — REVENUE FORECAST\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "elif page == \"📈 Revenue Forecast\":\n",
-    "    st.title(\"📈 Revenue Forecast — Next 12 Months\")\n",
-    "    st.markdown(\"*Forecast generated using Facebook Prophet with Brazilian holiday calendar*\")\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    # Forecast metrics\n",
-    "    col1, col2, col3 = st.columns(3)\n",
-    "    with col1:\n",
-    "        st.metric(\"Total Predicted Revenue\", f\"R${forecast['yhat'].sum()/1e6:.2f}M\")\n",
-    "    with col2:\n",
-    "        st.metric(\"Peak Month\", forecast.loc[forecast['yhat'].idxmax(), 'ds'].strftime('%B %Y'))\n",
-    "    with col3:\n",
-    "        avg_ci = ((forecast['yhat_upper'] - forecast['yhat_lower']) / forecast['yhat']).mean() * 100\n",
-    "        st.metric(\"Avg Uncertainty Range\", f\"±{avg_ci:.1f}%\")\n",
-    "\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    # Full history + forecast\n",
-    "    st.subheader(\"📊 Historical Revenue + 12-Month Forecast\")\n",
-    "    fig = go.Figure()\n",
-    "\n",
-    "    # Historical\n",
-    "    fig.add_trace(go.Scatter(\n",
-    "        x=monthly['ds'], y=monthly['y'],\n",
-    "        name='Actual Revenue',\n",
-    "        line=dict(color='#2E75B6', width=2),\n",
-    "        mode='lines'\n",
-    "    ))\n",
-    "\n",
-    "    # Confidence band\n",
-    "    fig.add_trace(go.Scatter(\n",
-    "        x=pd.concat([forecast['ds'], forecast['ds'][::-1]]),\n",
-    "        y=pd.concat([forecast['yhat_upper'], forecast['yhat_lower'][::-1]]),\n",
-    "        fill='toself', fillcolor='rgba(220, 38, 38, 0.15)',\n",
-    "        line=dict(color='rgba(255,255,255,0)'),\n",
-    "        name='95% Confidence Band'\n",
-    "    ))\n",
-    "\n",
-    "    # Forecast line\n",
-    "    fig.add_trace(go.Scatter(\n",
-    "        x=forecast['ds'], y=forecast['yhat'],\n",
-    "        name='Forecast',\n",
-    "        line=dict(color='#DC2626', width=2.5, dash='dash'),\n",
-    "        mode='lines+markers', marker=dict(size=6)\n",
-    "    ))\n",
-    "\n",
-    "    fig.add_vline(x=monthly['ds'].max(), line_dash=\"dot\", line_color=\"gray\",\n",
-    "                  annotation_text=\"Forecast start\", annotation_position=\"top right\")\n",
-    "\n",
-    "    fig.update_layout(\n",
-    "        height=450,\n",
-    "        xaxis_title=\"Date\", yaxis_title=\"Revenue (R$)\",\n",
-    "        yaxis_tickformat='R$,.0f',\n",
-    "        legend=dict(orientation=\"h\", y=1.02, x=0),\n",
-    "        hovermode='x unified'\n",
-    "    )\n",
-    "    st.plotly_chart(fig, use_container_width=True)\n",
-    "\n",
-    "    # Monthly bar chart\n",
-    "    st.subheader(\"📅 Month-by-Month Forecast\")\n",
-    "    forecast_display = forecast.copy()\n",
-    "    forecast_display['month_label'] = forecast_display['ds'].dt.strftime('%b %Y')\n",
-    "\n",
-    "    fig2 = go.Figure()\n",
-    "    fig2.add_trace(go.Bar(\n",
-    "        x=forecast_display['month_label'],\n",
-    "        y=forecast_display['yhat'],\n",
-    "        name='Predicted Revenue',\n",
-    "        marker_color='#2E75B6',\n",
-    "        error_y=dict(\n",
-    "            type='data', symmetric=False,\n",
-    "            array=forecast_display['yhat_upper'] - forecast_display['yhat'],\n",
-    "            arrayminus=forecast_display['yhat'] - forecast_display['yhat_lower'],\n",
-    "            color='#555555'\n",
-    "        )\n",
-    "    ))\n",
-    "    fig2.update_layout(\n",
-    "        height=380, xaxis_title=\"Month\", yaxis_title=\"Predicted Revenue (R$)\",\n",
-    "        yaxis_tickformat='R$,.0f'\n",
-    "    )\n",
-    "    st.plotly_chart(fig2, use_container_width=True)\n",
-    "\n",
-    "    # Table\n",
-    "    st.subheader(\"📋 Forecast Table\")\n",
-    "    forecast_table = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].copy()\n",
-    "    forecast_table.columns = ['Month', 'Predicted Revenue', 'Lower Bound (95%)', 'Upper Bound (95%)']\n",
-    "    forecast_table['Month'] = forecast_table['Month'].dt.strftime('%B %Y')\n",
-    "    for col in ['Predicted Revenue', 'Lower Bound (95%)', 'Upper Bound (95%)']:\n",
-    "        forecast_table[col] = forecast_table[col].apply(lambda x: f\"R$ {x:,.0f}\")\n",
-    "    st.dataframe(forecast_table, use_container_width=True, hide_index=True)\n",
-    "\n",
-    "\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "# PAGE 3 — EDA TRENDS\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "elif page == \"🔍 EDA — Trends\":\n",
-    "    st.title(\"🔍 Revenue Trends Analysis\")\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    # Yearly\n",
-    "    yearly = (\n",
-    "        delivered.groupby('order_year')\n",
-    "        .agg(total_revenue=('item_revenue', 'sum'), total_orders=('order_id', 'nunique'))\n",
-    "        .reset_index()\n",
-    "    )\n",
-    "    yearly['yoy_growth'] = yearly['total_revenue'].pct_change() * 100\n",
-    "\n",
-    "    col1, col2 = st.columns(2)\n",
-    "    with col1:\n",
-    "        st.subheader(\"📊 Revenue by Year\")\n",
-    "        fig = px.bar(yearly, x='order_year', y='total_revenue',\n",
-    "                     text=yearly['total_revenue'].apply(lambda x: f\"R${x/1e6:.1f}M\"),\n",
-    "                     color_discrete_sequence=['#2E75B6'])\n",
-    "        fig.update_layout(height=350, yaxis_tickformat='R$,.0f', xaxis_title=\"Year\",\n",
-    "                          yaxis_title=\"Revenue (R$)\")\n",
-    "        st.plotly_chart(fig, use_container_width=True)\n",
-    "\n",
-    "    with col2:\n",
-    "        st.subheader(\"📈 Year-over-Year Growth %\")\n",
-    "        yoy = yearly.dropna(subset=['yoy_growth'])\n",
-    "        colors = ['#16A34A' if v >= 0 else '#DC2626' for v in yoy['yoy_growth']]\n",
-    "        fig2 = go.Figure(go.Bar(x=yoy['order_year'].astype(str), y=yoy['yoy_growth'],\n",
-    "                                 marker_color=colors,\n",
-    "                                 text=yoy['yoy_growth'].apply(lambda x: f\"{x:.1f}%\"),\n",
-    "                                 textposition='outside'))\n",
-    "        fig2.update_layout(height=350, xaxis_title=\"Year\", yaxis_title=\"Growth %\")\n",
-    "        st.plotly_chart(fig2, use_container_width=True)\n",
-    "\n",
-    "    # Monthly seasonality\n",
-    "    st.subheader(\"🌊 Monthly Seasonality Pattern\")\n",
-    "    month_names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']\n",
-    "    monthly_avg = delivered.groupby('order_month')['item_revenue'].mean().reset_index()\n",
-    "    monthly_avg['month_name'] = monthly_avg['order_month'].apply(lambda x: month_names[x-1])\n",
-    "\n",
-    "    fig3 = px.bar(monthly_avg, x='month_name', y='item_revenue',\n",
-    "                  color='item_revenue', color_continuous_scale='Blues',\n",
-    "                  labels={'item_revenue': 'Avg Revenue (R$)', 'month_name': 'Month'})\n",
-    "    fig3.update_layout(height=350, coloraxis_showscale=False)\n",
-    "    st.plotly_chart(fig3, use_container_width=True)\n",
-    "\n",
-    "\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "# PAGE 4 — EDA CATEGORIES\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "elif page == \"🏷️ EDA — Categories\":\n",
-    "    st.title(\"🏷️ Product Category Analysis\")\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    cat_rev = (\n",
-    "        delivered.groupby('product_category_name')\n",
-    "        .agg(total_revenue=('item_revenue', 'sum'),\n",
-    "             total_orders=('order_id', 'nunique'),\n",
-    "             avg_price=('price', 'mean'))\n",
-    "        .reset_index()\n",
-    "        .sort_values('total_revenue', ascending=False)\n",
-    "        .head(10)\n",
-    "    )\n",
-    "\n",
-    "    col1, col2 = st.columns(2)\n",
-    "    with col1:\n",
-    "        st.subheader(\"💰 Top 10 by Revenue\")\n",
-    "        fig = px.bar(cat_rev, x='total_revenue', y='product_category_name',\n",
-    "                     orientation='h', color_discrete_sequence=['#2E75B6'])\n",
-    "        fig.update_layout(height=400, xaxis_tickformat='R$,.0f',\n",
-    "                          yaxis={'categoryorder': 'total ascending'},\n",
-    "                          yaxis_title=\"\", xaxis_title=\"Revenue (R$)\")\n",
-    "        st.plotly_chart(fig, use_container_width=True)\n",
-    "\n",
-    "    with col2:\n",
-    "        st.subheader(\"📦 Top 10 by Orders\")\n",
-    "        fig2 = px.bar(cat_rev, x='total_orders', y='product_category_name',\n",
-    "                      orientation='h', color_discrete_sequence=['#16A34A'])\n",
-    "        fig2.update_layout(height=400, yaxis={'categoryorder': 'total ascending'},\n",
-    "                           yaxis_title=\"\", xaxis_title=\"Total Orders\")\n",
-    "        st.plotly_chart(fig2, use_container_width=True)\n",
-    "\n",
-    "    st.subheader(\"📋 Category Summary Table\")\n",
-    "    cat_display = cat_rev.copy()\n",
-    "    cat_display['total_revenue'] = cat_display['total_revenue'].apply(lambda x: f\"R${x:,.0f}\")\n",
-    "    cat_display['avg_price'] = cat_display['avg_price'].apply(lambda x: f\"R${x:,.2f}\")\n",
-    "    cat_display.columns = ['Category', 'Total Revenue', 'Total Orders', 'Avg Price']\n",
-    "    st.dataframe(cat_display, use_container_width=True, hide_index=True)\n",
-    "\n",
-    "\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "# PAGE 5 — EDA GEOGRAPHY\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "elif page == \"🗺️ EDA — Geography\":\n",
-    "    st.title(\"🗺️ Geographic & Payment Analysis\")\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    state_rev = (\n",
-    "        delivered.groupby('customer_state')\n",
-    "        .agg(total_revenue=('item_revenue', 'sum'),\n",
-    "             total_orders=('order_id', 'nunique'),\n",
-    "             total_customers=('customer_id', 'nunique'))\n",
-    "        .reset_index()\n",
-    "        .sort_values('total_revenue', ascending=False)\n",
-    "        .head(10)\n",
-    "    )\n",
-    "\n",
-    "    col1, col2 = st.columns(2)\n",
-    "    with col1:\n",
-    "        st.subheader(\"🏛️ Top 10 States by Revenue\")\n",
-    "        fig = px.bar(state_rev, x='total_revenue', y='customer_state',\n",
-    "                     orientation='h', color_discrete_sequence=['#2E75B6'])\n",
-    "        fig.update_layout(height=400, xaxis_tickformat='R$,.0f',\n",
-    "                          yaxis={'categoryorder': 'total ascending'},\n",
-    "                          yaxis_title=\"State\", xaxis_title=\"Revenue (R$)\")\n",
-    "        st.plotly_chart(fig, use_container_width=True)\n",
-    "\n",
-    "    with col2:\n",
-    "        st.subheader(\"💳 Payment Type Distribution\")\n",
-    "        pay_dist = master['payment_type'].value_counts()\n",
-    "        fig2 = px.pie(values=pay_dist.values, names=pay_dist.index,\n",
-    "                      color_discrete_sequence=px.colors.qualitative.Set2,\n",
-    "                      hole=0.35)\n",
-    "        fig2.update_layout(height=400)\n",
-    "        st.plotly_chart(fig2, use_container_width=True)\n",
-    "\n",
-    "    if 'region' in master.columns:\n",
-    "        st.subheader(\"🌎 Revenue by Region\")\n",
-    "        region_rev = (\n",
-    "            delivered.groupby('region')['item_revenue']\n",
-    "            .sum().reset_index().sort_values('item_revenue', ascending=False)\n",
-    "        )\n",
-    "        fig3 = px.bar(region_rev, x='region', y='item_revenue',\n",
-    "                      color='item_revenue', color_continuous_scale='Blues',\n",
-    "                      labels={'item_revenue': 'Revenue (R$)', 'region': 'Region'})\n",
-    "        fig3.update_layout(height=350, coloraxis_showscale=False, yaxis_tickformat='R$,.0f')\n",
-    "        st.plotly_chart(fig3, use_container_width=True)\n",
-    "\n",
-    "\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "# PAGE 6 — EDA DELIVERY\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "elif page == \"🚚 EDA — Delivery\":\n",
-    "    st.title(\"🚚 Delivery Performance Analysis\")\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    col1, col2, col3, col4 = st.columns(4)\n",
-    "    with col1:\n",
-    "        st.metric(\"Avg Delivery Days\", f\"{delivered['delivery_days'].mean():.1f}\")\n",
-    "    with col2:\n",
-    "        st.metric(\"On-Time Rate\", f\"{delivered['on_time_delivery'].mean()*100:.1f}%\")\n",
-    "    with col3:\n",
-    "        st.metric(\"Min Delivery\", f\"{delivered['delivery_days'].min():.0f} days\")\n",
-    "    with col4:\n",
-    "        st.metric(\"Max Delivery\", f\"{delivered['delivery_days'].max():.0f} days\")\n",
-    "\n",
-    "    st.markdown(\"---\")\n",
-    "    col1, col2 = st.columns(2)\n",
-    "\n",
-    "    with col1:\n",
-    "        st.subheader(\"📊 Delivery Days Distribution\")\n",
-    "        fig = px.histogram(\n",
-    "            delivered.dropna(subset=['delivery_days']),\n",
-    "            x='delivery_days', nbins=40,\n",
-    "            color_discrete_sequence=['#2E75B6'],\n",
-    "            labels={'delivery_days': 'Delivery Days', 'count': 'Orders'}\n",
-    "        )\n",
-    "        fig.add_vline(x=delivered['delivery_days'].mean(), line_dash=\"dash\", line_color=\"red\",\n",
-    "                      annotation_text=f\"Mean: {delivered['delivery_days'].mean():.1f}d\")\n",
-    "        fig.update_layout(height=350)\n",
-    "        st.plotly_chart(fig, use_container_width=True)\n",
-    "\n",
-    "    with col2:\n",
-    "        st.subheader(\"🐌 Slowest States (Avg Delivery)\")\n",
-    "        slow_states = (\n",
-    "            delivered.groupby('customer_state')['delivery_days']\n",
-    "            .mean().sort_values(ascending=False).head(10).reset_index()\n",
-    "        )\n",
-    "        fig2 = px.bar(slow_states, x='delivery_days', y='customer_state',\n",
-    "                      orientation='h', color_discrete_sequence=['#F59E0B'])\n",
-    "        fig2.update_layout(height=350, yaxis={'categoryorder': 'total ascending'},\n",
-    "                           yaxis_title=\"State\", xaxis_title=\"Avg Days\")\n",
-    "        st.plotly_chart(fig2, use_container_width=True)\n",
-    "\n",
-    "\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "# PAGE 7 — MODEL METRICS\n",
-    "# ══════════════════════════════════════════════════════════════════\n",
-    "elif page == \"🤖 Model Metrics\":\n",
-    "    st.title(\"🤖 Model Performance — Facebook Prophet\")\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    # Metric cards\n",
-    "    col1, col2, col3, col4, col5 = st.columns(5)\n",
-    "    m = metrics.iloc[0]\n",
-    "    with col1:\n",
-    "        st.metric(\"MAE\", f\"R${m['MAE']:,.0f}\")\n",
-    "    with col2:\n",
-    "        st.metric(\"RMSE\", f\"R${m['RMSE']:,.0f}\")\n",
-    "    with col3:\n",
-    "        st.metric(\"R² Score\", f\"{m['R2']:.4f}\")\n",
-    "    with col4:\n",
-    "        st.metric(\"MAPE\", f\"{m['MAPE_pct']:.2f}%\")\n",
-    "    with col5:\n",
-    "        st.metric(\"Accuracy\", f\"{m['Accuracy']:.2f}%\")\n",
-    "\n",
-    "    st.markdown(\"---\")\n",
-    "\n",
-    "    # Actual vs Predicted\n",
-    "    st.subheader(\"📊 Actual vs Predicted — Test Set\")\n",
-    "    fig = go.Figure()\n",
-    "    fig.add_trace(go.Scatter(\n",
-    "        x=evaluation['ds'], y=evaluation['actual'],\n",
-    "        name='Actual', line=dict(color='#2E75B6', width=2),\n",
-    "        mode='lines+markers', marker=dict(size=7)\n",
-    "    ))\n",
-    "    fig.add_trace(go.Scatter(\n",
-    "        x=evaluation['ds'], y=evaluation['predicted'],\n",
-    "        name='Predicted', line=dict(color='#DC2626', width=2, dash='dash'),\n",
-    "        mode='lines+markers', marker=dict(size=7, symbol='square')\n",
-    "    ))\n",
-    "    fig.update_layout(\n",
-    "        height=400, xaxis_title=\"Month\", yaxis_title=\"Revenue (R$)\",\n",
-    "        yaxis_tickformat='R$,.0f', hovermode='x unified',\n",
-    "        title=f\"Test Set Evaluation | MAPE: {m['MAPE_pct']:.2f}% | R²: {m['R2']:.4f}\"\n",
-    "    )\n",
-    "    st.plotly_chart(fig, use_container_width=True)\n",
-    "\n",
-    "    # Error chart\n",
-    "    st.subheader(\"📉 Prediction Error by Month\")\n",
-    "    fig2 = px.bar(evaluation,\n",
-    "                  x=pd.to_datetime(evaluation['ds']).dt.strftime('%b %Y'),\n",
-    "                  y='error_pct',\n",
-    "                  color='error_pct',\n",
-    "                  color_continuous_scale='RdYlGn_r',\n",
-    "                  labels={'error_pct': 'Error %', 'x': 'Month'})\n",
-    "    fig2.add_hline(y=0, line_dash=\"solid\", line_color=\"black\", line_width=1)\n",
-    "    fig2.update_layout(height=350, coloraxis_showscale=False)\n",
-    "    st.plotly_chart(fig2, use_container_width=True)\n",
-    "\n",
-    "    st.markdown(\"---\")\n",
-    "    st.info(\"\"\"\n",
-    "    **Model Configuration:**\n",
-    "    - Algorithm: Facebook Prophet\n",
-    "    - Seasonality: Multiplicative (scales with revenue level)\n",
-    "    - Changepoint prior scale: 0.1 (conservative, prevents overfitting)\n",
-    "    - Holiday calendar: Brazilian national holidays\n",
-    "    - Confidence interval: 95%\n",
-    "    - Training data: Full dataset (2016–Feb 2026)\n",
-    "    - Test set: Last 12 months of dataset\n",
-    "    \"\"\")"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "id": "c8815deb-d3e5-42f5-8608-b62ff07f1f32",
-   "metadata": {},
-   "outputs": [],
-   "source": []
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "Python 3 (ipykernel)",
-   "language": "python",
-   "name": "python3"
-  },
-  "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.12.7"
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 5
-}
+    .metric-value { font-size: 1.8rem; font-weight: 700; color: #38bdf8; }
+    .metric-label { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
+    .section-header {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        padding: 12px 0 8px 0;
+        border-bottom: 2px solid #2563eb;
+        margin-bottom: 16px;
+    }
+    .stTabs [data-baseweb="tab"] { font-size: 0.95rem; font-weight: 600; }
+    .insight-box {
+        background: #0f172a;
+        border-left: 4px solid #2563eb;
+        padding: 12px 16px;
+        border-radius: 0 8px 8px 0;
+        margin: 8px 0;
+        font-size: 0.9rem;
+        color: #cbd5e1;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────
+COLORS = ["#2563EB", "#16A34A", "#DC2626", "#F59E0B", "#7C3AED", "#0891B2"]
+
+def fmt_inr(val):
+    return f"R${val:,.0f}"
+
+def safe_read(fname):
+    """Read CSV if it exists, else return empty DataFrame."""
+    if os.path.exists(fname):
+        return pd.read_csv(fname)
+    return pd.DataFrame()
+
+# ─────────────────────────────────────────────
+# DATA LOADING
+# ─────────────────────────────────────────────
+@st.cache_data(show_spinner="Loading data...")
+def load_all_data():
+    # Try loading cleaned files first; fall back to final_ files
+    def try_load(names):
+        for n in names:
+            df = safe_read(n)
+            if not df.empty:
+                return df
+        return pd.DataFrame()
+
+    orders    = try_load(["cleaned_orders.csv",     "final_orders.csv"])
+    items     = try_load(["cleaned_order_items.csv","final_order_items.csv"])
+    customers = try_load(["cleaned_customers.csv",  "final_customers.csv"])
+    payments  = try_load(["cleaned_payments.csv",   "final_payments.csv"])
+    products  = try_load(["cleaned_products.csv",   "final_products.csv"])
+    monthly   = try_load(["monthly_revenue.csv"])
+    master    = try_load(["master_dataset.csv"])
+
+    # ── Date parsing ─────────────────────────────────────────────
+    date_cols = [
+        "order_purchase_timestamp", "order_approved_at",
+        "order_delivered_timestamp", "order_estimated_delivery_date",
+    ]
+    for col in date_cols:
+        if col in orders.columns:
+            orders[col] = pd.to_datetime(orders[col], errors="coerce")
+
+    if "ds" in monthly.columns:
+        monthly["ds"] = pd.to_datetime(monthly["ds"], errors="coerce")
+
+    # ── If master is missing, rebuild it ────────────────────────
+    if master.empty and not orders.empty and not items.empty:
+        st.info("master_dataset.csv not found — rebuilding from component files...")
+        pay_agg = pd.DataFrame()
+        if not payments.empty:
+            pay_agg = (
+                payments.groupby("order_id")
+                .agg(
+                    payment_value=("payment_value", "sum"),
+                    payment_type=("payment_type", lambda x: x.mode()[0] if len(x) else "unknown"),
+                    payment_installments=("payment_installments", "max"),
+                )
+                .reset_index()
+            )
+
+        master = orders.copy()
+        if not customers.empty:
+            master = master.merge(customers, on="customer_id", how="left")
+        if not items.empty:
+            master = master.merge(items, on="order_id", how="left")
+        if not products.empty and "product_id" in master.columns:
+            master = master.merge(products, on="product_id", how="left")
+        if not pay_agg.empty:
+            master = master.merge(pay_agg, on="order_id", how="left")
+
+        # Re-parse dates after merge
+        for col in date_cols:
+            if col in master.columns:
+                master[col] = pd.to_datetime(master[col], errors="coerce")
+
+        # Derived columns
+        if "order_purchase_timestamp" in master.columns:
+            master["order_year"]        = master["order_purchase_timestamp"].dt.year
+            master["order_month"]       = master["order_purchase_timestamp"].dt.month
+            master["order_quarter"]     = master["order_purchase_timestamp"].dt.quarter
+            master["order_day_of_week"] = master["order_purchase_timestamp"].dt.dayofweek
+
+        if "order_delivered_timestamp" in master.columns and "order_purchase_timestamp" in master.columns:
+            master["delivery_days"] = (
+                (master["order_delivered_timestamp"] - master["order_purchase_timestamp"])
+                .dt.total_seconds() / 86400
+            ).round(1)
+            master["on_time_delivery"] = (
+                master["order_delivered_timestamp"] <= master["order_estimated_delivery_date"]
+            ).astype("Int64")
+
+        if "order_purchase_timestamp" in master.columns:
+            master["approval_lag_hrs"] = (
+                (master["order_approved_at"] - master["order_purchase_timestamp"])
+                .dt.total_seconds() / 3600
+            ).round(2)
+
+        if "order_status" in master.columns:
+            master["is_delivered"] = (master["order_status"] == "delivered").astype(int)
+            master["is_canceled"]  = (master["order_status"] == "canceled").astype(int)
+
+        if "price" in master.columns and "shipping_charges" in master.columns:
+            master["item_revenue"] = master["price"] + master["shipping_charges"]
+
+    # ── Rebuild monthly_revenue if missing ───────────────────────
+    if monthly.empty and not master.empty:
+        delivered_mask = master.get("order_status", pd.Series()) == "delivered"
+        tmp = master[delivered_mask].copy()
+        if "order_year" in tmp.columns and "order_month" in tmp.columns and "item_revenue" in tmp.columns:
+            monthly = (
+                tmp.groupby(["order_year", "order_month"])
+                .agg(
+                    y             =("item_revenue",  "sum"),
+                    total_orders  =("order_id",      "nunique"),
+                    avg_order_value=("item_revenue", "mean"),
+                    total_customers=("customer_id",  "nunique"),
+                )
+                .reset_index()
+            )
+            monthly["ds"] = pd.to_datetime(
+                monthly["order_year"].astype(str) + "-" +
+                monthly["order_month"].astype(str).str.zfill(2) + "-01"
+            )
+            monthly = monthly.rename(columns={"y": "y"}).sort_values("ds").reset_index(drop=True)
+
+    return orders, items, customers, payments, products, monthly, master
+
+
+orders, items, customers, payments, products, monthly_rev, master = load_all_data()
+
+# Guard: stop if no data at all
+if master.empty and orders.empty:
+    st.error(
+        "❌ No data files found. Please ensure at least `cleaned_orders.csv`, "
+        "`cleaned_order_items.csv`, `cleaned_customers.csv`, `cleaned_payments.csv`, "
+        "and `cleaned_products.csv` are in the same directory as `app.py`."
+    )
+    st.stop()
+
+df = master if not master.empty else orders
+
+# ─────────────────────────────────────────────
+# SIDEBAR
+# ─────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("## 📦 Supply Chain Analytics")
+    st.markdown("---")
+
+    page = st.radio(
+        "Navigate",
+        ["🏠 Overview", "📈 Revenue Trends", "🗂️ Category Analysis",
+         "🚚 Delivery Analysis", "🔮 Revenue Forecast", "🤖 ML Metrics"],
+        index=0,
+    )
+
+    st.markdown("---")
+
+    # Year filter
+    if "order_year" in df.columns:
+        years = sorted(df["order_year"].dropna().unique().astype(int))
+        sel_years = st.multiselect("Filter by Year", years, default=years)
+        if sel_years:
+            df = df[df["order_year"].isin(sel_years)]
+            if not monthly_rev.empty and "ds" in monthly_rev.columns:
+                monthly_rev = monthly_rev[monthly_rev["ds"].dt.year.isin(sel_years)]
+
+    st.markdown("---")
+    st.caption("Capstone 2 — Supply Chain Analytics & Revenue Forecasting")
+
+# ─────────────────────────────────────────────
+# ══ PAGE 1 — OVERVIEW ══════════════════════
+# ─────────────────────────────────────────────
+if page == "🏠 Overview":
+    st.title("📦 Supply Chain Analytics Dashboard")
+    st.markdown("End-to-end analytics across orders, customers, products, and revenue.")
+    st.markdown("---")
+
+    delivered = df[df.get("order_status", pd.Series()) == "delivered"] if "order_status" in df.columns else df
+
+    # KPI cards
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    kpi_data = [
+        (col1, "Total Orders",    f"{df['order_id'].nunique():,}"              if "order_id"      in df.columns else "N/A", "📦"),
+        (col2, "Total Revenue",   f"R${df['item_revenue'].sum():,.0f}"         if "item_revenue"  in df.columns else "N/A", "💰"),
+        (col3, "Avg Order Value", f"R${df['item_revenue'].mean():,.2f}"        if "item_revenue"  in df.columns else "N/A", "🛒"),
+        (col4, "Total Customers", f"{df['customer_id'].nunique():,}"           if "customer_id"   in df.columns else "N/A", "👥"),
+        (col5, "Delivery Rate",   f"{delivered.shape[0]/max(df.shape[0],1)*100:.1f}%" if not delivered.empty else "N/A", "✅"),
+        (col6, "Avg Delivery",    f"{delivered['delivery_days'].mean():.1f}d"  if "delivery_days" in delivered.columns else "N/A", "🚚"),
+    ]
+    for col, label, value, icon in kpi_data:
+        with col:
+            st.markdown(
+                f'<div class="metric-card"><div class="metric-value">{icon}<br>{value}</div>'
+                f'<div class="metric-label">{label}</div></div>',
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    col_a, col_b = st.columns(2)
+
+    # Order status distribution
+    with col_a:
+        st.markdown('<div class="section-header">Order Status Distribution</div>', unsafe_allow_html=True)
+        if "order_status" in df.columns:
+            status_counts = df["order_status"].value_counts()
+            fig, ax = plt.subplots(figsize=(6, 4), facecolor="#0f172a")
+            ax.set_facecolor("#0f172a")
+            wedges, texts, autotexts = ax.pie(
+                status_counts.values,
+                labels=status_counts.index,
+                autopct="%1.1f%%",
+                colors=COLORS[:len(status_counts)],
+                startangle=90,
+            )
+            for t in texts + autotexts:
+                t.set_color("white")
+                t.set_fontsize(9)
+            ax.set_title("Order Status", color="white", fontsize=12, fontweight="bold")
+            st.pyplot(fig)
+            plt.close(fig)
+
+    # Payment type distribution
+    with col_b:
+        st.markdown('<div class="section-header">Payment Type Distribution</div>', unsafe_allow_html=True)
+        pay_col = "payment_type" if "payment_type" in df.columns else None
+        if pay_col:
+            pay_counts = df[pay_col].value_counts()
+            fig, ax = plt.subplots(figsize=(6, 4), facecolor="#0f172a")
+            ax.set_facecolor("#0f172a")
+            bars = ax.barh(pay_counts.index, pay_counts.values, color=COLORS[:len(pay_counts)])
+            ax.set_title("Payment Types", color="white", fontsize=12, fontweight="bold")
+            ax.tick_params(colors="white")
+            ax.spines["bottom"].set_color("#334155")
+            ax.spines["left"].set_color("#334155")
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            for bar in bars:
+                ax.text(bar.get_width() + 50, bar.get_y() + bar.get_height()/2,
+                        f"{int(bar.get_width()):,}", va="center", color="white", fontsize=9)
+            st.pyplot(fig)
+            plt.close(fig)
+
+    # Key insights
+    st.markdown('<div class="section-header">Key Insights</div>', unsafe_allow_html=True)
+    insights = []
+    if "order_status" in df.columns:
+        top_status = df["order_status"].value_counts().index[0]
+        top_pct    = df["order_status"].value_counts(normalize=True).iloc[0] * 100
+        insights.append(f"🟢 <b>{top_status.title()}</b> is the most common order status at <b>{top_pct:.1f}%</b>")
+    if "product_category_name" in df.columns:
+        top_cat = df["product_category_name"].value_counts().index[0]
+        insights.append(f"🛍️ Top product category: <b>{top_cat.replace('_',' ').title()}</b>")
+    if "customer_state" in df.columns:
+        top_state = df["customer_state"].value_counts().index[0]
+        insights.append(f"📍 Most orders from state: <b>{top_state}</b>")
+    if "delivery_days" in delivered.columns:
+        avg_del = delivered["delivery_days"].mean()
+        insights.append(f"🚚 Average delivery time: <b>{avg_del:.1f} days</b>")
+
+    for ins in insights:
+        st.markdown(f'<div class="insight-box">{ins}</div>', unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────
+# ══ PAGE 2 — REVENUE TRENDS ════════════════
+# ─────────────────────────────────────────────
+elif page == "📈 Revenue Trends":
+    st.title("📈 Revenue Trends")
+    st.markdown("---")
+
+    if monthly_rev.empty or "ds" not in monthly_rev.columns:
+        st.warning("Monthly revenue data not available.")
+        st.stop()
+
+    # Monthly revenue trend
+    st.markdown('<div class="section-header">Monthly Revenue Over Time</div>', unsafe_allow_html=True)
+    fig, ax = plt.subplots(figsize=(14, 5), facecolor="#0f172a")
+    ax.set_facecolor("#0f172a")
+    ax.plot(monthly_rev["ds"], monthly_rev["y"], color=COLORS[0], linewidth=2, marker="o", markersize=3)
+    ax.fill_between(monthly_rev["ds"], monthly_rev["y"], alpha=0.15, color=COLORS[0])
+    ax.set_title("Monthly Revenue Trend", color="white", fontsize=13, fontweight="bold")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x/1e6:.1f}M"))
+    ax.tick_params(colors="white")
+    for spine in ax.spines.values():
+        spine.set_color("#334155")
+    ax.grid(True, alpha=0.2)
+    st.pyplot(fig)
+    plt.close(fig)
+
+    # Yearly summary
+    st.markdown('<div class="section-header">Yearly Revenue Summary</div>', unsafe_allow_html=True)
+    if "order_year" in df.columns and "item_revenue" in df.columns:
+        delivered_df = df[df.get("order_status", pd.Series("delivered")) == "delivered"] if "order_status" in df.columns else df
+        yearly = (
+            delivered_df.groupby("order_year")
+            .agg(total_revenue=("item_revenue","sum"), total_orders=("order_id","nunique"))
+            .reset_index()
+        )
+        yearly["revenue_yoy_pct"] = yearly["total_revenue"].pct_change() * 100
+
+        col1, col2 = st.columns(2)
+        with col1:
+            fig, ax = plt.subplots(figsize=(7, 4), facecolor="#0f172a")
+            ax.set_facecolor("#0f172a")
+            ax.bar(yearly["order_year"].astype(str), yearly["total_revenue"], color=COLORS[0])
+            ax.set_title("Revenue by Year", color="white", fontsize=11, fontweight="bold")
+            ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x/1e6:.0f}M"))
+            ax.tick_params(colors="white")
+            for s in ax.spines.values(): s.set_color("#334155")
+            st.pyplot(fig); plt.close(fig)
+
+        with col2:
+            fig, ax = plt.subplots(figsize=(7, 4), facecolor="#0f172a")
+            ax.set_facecolor("#0f172a")
+            yoy = yearly.dropna(subset=["revenue_yoy_pct"])
+            bar_colors = [COLORS[1] if v >= 0 else COLORS[2] for v in yoy["revenue_yoy_pct"]]
+            ax.bar(yoy["order_year"].astype(str), yoy["revenue_yoy_pct"], color=bar_colors)
+            ax.set_title("YoY Growth %", color="white", fontsize=11, fontweight="bold")
+            ax.axhline(0, color="white", linewidth=0.8)
+            ax.tick_params(colors="white")
+            for s in ax.spines.values(): s.set_color("#334155")
+            st.pyplot(fig); plt.close(fig)
+
+        st.dataframe(
+            yearly.style.format({
+                "total_revenue":"R${:,.0f}",
+                "total_orders":"{:,}",
+                "revenue_yoy_pct":"{:.1f}%"
+            }),
+            use_container_width=True
+        )
+
+    # Seasonality
+    st.markdown('<div class="section-header">Monthly Seasonality</div>', unsafe_allow_html=True)
+    if "order_month" in df.columns and "item_revenue" in df.columns:
+        delivered_df = df[df["order_status"] == "delivered"] if "order_status" in df.columns else df
+        monthly_avg = delivered_df.groupby("order_month")["item_revenue"].mean().reset_index()
+        month_names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+        monthly_avg["month_name"] = monthly_avg["order_month"].apply(lambda x: month_names[x-1])
+
+        fig, ax = plt.subplots(figsize=(14, 4), facecolor="#0f172a")
+        ax.set_facecolor("#0f172a")
+        ax.bar(monthly_avg["month_name"], monthly_avg["item_revenue"], color=COLORS[0])
+        ax.set_title("Average Revenue by Month (Seasonality)", color="white", fontsize=12, fontweight="bold")
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x:,.0f}"))
+        ax.tick_params(colors="white")
+        for s in ax.spines.values(): s.set_color("#334155")
+        ax.grid(axis="y", alpha=0.2)
+        st.pyplot(fig); plt.close(fig)
+
+
+# ─────────────────────────────────────────────
+# ══ PAGE 3 — CATEGORY ANALYSIS ═════════════
+# ─────────────────────────────────────────────
+elif page == "🗂️ Category Analysis":
+    st.title("🗂️ Category Analysis")
+    st.markdown("---")
+
+    if "product_category_name" not in df.columns or "item_revenue" not in df.columns:
+        st.warning("Category or revenue data not available.")
+        st.stop()
+
+    delivered_df = df[df["order_status"] == "delivered"] if "order_status" in df.columns else df
+    cat_rev = (
+        delivered_df.groupby("product_category_name")
+        .agg(total_revenue=("item_revenue","sum"), total_orders=("order_id","nunique"), avg_price=("price","mean"))
+        .reset_index().sort_values("total_revenue", ascending=False).head(10)
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown('<div class="section-header">Top 10 by Revenue</div>', unsafe_allow_html=True)
+        fig, ax = plt.subplots(figsize=(7, 5), facecolor="#0f172a")
+        ax.set_facecolor("#0f172a")
+        ax.barh(cat_rev["product_category_name"][::-1], cat_rev["total_revenue"][::-1], color=COLORS[0])
+        ax.set_title("Revenue by Category", color="white", fontsize=11, fontweight="bold")
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x/1e6:.0f}M"))
+        ax.tick_params(colors="white")
+        for s in ax.spines.values(): s.set_color("#334155")
+        st.pyplot(fig); plt.close(fig)
+
+    with col2:
+        st.markdown('<div class="section-header">Top 10 by Orders</div>', unsafe_allow_html=True)
+        fig, ax = plt.subplots(figsize=(7, 5), facecolor="#0f172a")
+        ax.set_facecolor("#0f172a")
+        ax.barh(cat_rev["product_category_name"][::-1], cat_rev["total_orders"][::-1], color=COLORS[1])
+        ax.set_title("Orders by Category", color="white", fontsize=11, fontweight="bold")
+        ax.tick_params(colors="white")
+        for s in ax.spines.values(): s.set_color("#334155")
+        st.pyplot(fig); plt.close(fig)
+
+    st.markdown('<div class="section-header">Category Revenue Table</div>', unsafe_allow_html=True)
+    st.dataframe(
+        cat_rev.rename(columns={
+            "product_category_name":"Category",
+            "total_revenue":"Revenue (R$)",
+            "total_orders":"Orders",
+            "avg_price":"Avg Price (R$)"
+        }).style.format({"Revenue (R$)":"R${:,.0f}", "Orders":"{:,}", "Avg Price (R$)":"R${:,.2f)"}),
+        use_container_width=True
+    )
+
+
+# ─────────────────────────────────────────────
+# ══ PAGE 4 — DELIVERY ANALYSIS ═════════════
+# ─────────────────────────────────────────────
+elif page == "🚚 Delivery Analysis":
+    st.title("🚚 Delivery Analysis")
+    st.markdown("---")
+
+    if "delivery_days" not in df.columns:
+        st.warning("Delivery data not available.")
+        st.stop()
+
+    delivered = df[df["order_status"] == "delivered"].copy() if "order_status" in df.columns else df.copy()
+    delivered = delivered.dropna(subset=["delivery_days"])
+
+    # KPIs
+    col1, col2, col3, col4 = st.columns(4)
+    metrics = [
+        (col1, "Avg Delivery Days",   f"{delivered['delivery_days'].mean():.1f} days"),
+        (col2, "Min Delivery Days",   f"{delivered['delivery_days'].min():.0f} days"),
+        (col3, "Max Delivery Days",   f"{delivered['delivery_days'].max():.0f} days"),
+        (col4, "On-Time Rate",
+         f"{delivered['on_time_delivery'].mean()*100:.1f}%" if "on_time_delivery" in delivered.columns else "N/A"),
+    ]
+    for col, label, value in metrics:
+        with col:
+            st.markdown(
+                f'<div class="metric-card"><div class="metric-value">{value}</div>'
+                f'<div class="metric-label">{label}</div></div>',
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown('<div class="section-header">Delivery Days Distribution</div>', unsafe_allow_html=True)
+        fig, ax = plt.subplots(figsize=(7, 4), facecolor="#0f172a")
+        ax.set_facecolor("#0f172a")
+        delivered["delivery_days"].hist(bins=30, ax=ax, color=COLORS[0], edgecolor="#0f172a")
+        ax.axvline(delivered["delivery_days"].mean(), color=COLORS[2], linestyle="--",
+                   label=f"Mean: {delivered['delivery_days'].mean():.1f}d")
+        ax.set_title("Delivery Days Distribution", color="white", fontsize=11, fontweight="bold")
+        ax.tick_params(colors="white")
+        for s in ax.spines.values(): s.set_color("#334155")
+        ax.legend(facecolor="#1e293b", labelcolor="white")
+        st.pyplot(fig); plt.close(fig)
+
+    with col2:
+        st.markdown('<div class="section-header">Slowest States (Avg Days)</div>', unsafe_allow_html=True)
+        if "customer_state" in delivered.columns:
+            state_del = (
+                delivered.groupby("customer_state")["delivery_days"]
+                .mean().sort_values(ascending=False).head(10).reset_index()
+            )
+            fig, ax = plt.subplots(figsize=(7, 4), facecolor="#0f172a")
+            ax.set_facecolor("#0f172a")
+            ax.barh(state_del["customer_state"][::-1], state_del["delivery_days"][::-1], color=COLORS[3])
+            ax.set_title("Avg Delivery Days by State", color="white", fontsize=11, fontweight="bold")
+            ax.tick_params(colors="white")
+            for s in ax.spines.values(): s.set_color("#334155")
+            st.pyplot(fig); plt.close(fig)
+
+    # On-time by category
+    if "product_category_name" in delivered.columns and "on_time_delivery" in delivered.columns:
+        st.markdown('<div class="section-header">On-Time Delivery by Category</div>', unsafe_allow_html=True)
+        cat_otd = (
+            delivered.groupby("product_category_name")["on_time_delivery"]
+            .mean().sort_values(ascending=False).head(10).reset_index()
+        )
+        cat_otd["on_time_pct"] = cat_otd["on_time_delivery"] * 100
+        fig, ax = plt.subplots(figsize=(12, 4), facecolor="#0f172a")
+        ax.set_facecolor("#0f172a")
+        bar_colors = [COLORS[1] if v >= 80 else COLORS[3] if v >= 60 else COLORS[2]
+                      for v in cat_otd["on_time_pct"]]
+        ax.bar(cat_otd["product_category_name"], cat_otd["on_time_pct"], color=bar_colors)
+        ax.set_title("On-Time Delivery % by Category", color="white", fontsize=11, fontweight="bold")
+        ax.set_ylabel("On-Time %", color="white")
+        ax.tick_params(axis="x", rotation=45, colors="white")
+        ax.tick_params(axis="y", colors="white")
+        for s in ax.spines.values(): s.set_color("#334155")
+        ax.axhline(80, color=COLORS[2], linestyle="--", linewidth=1, label="80% target")
+        ax.legend(facecolor="#1e293b", labelcolor="white")
+        st.pyplot(fig); plt.close(fig)
+
+
+# ─────────────────────────────────────────────
+# ══ PAGE 5 — REVENUE FORECAST ══════════════
+# ─────────────────────────────────────────────
+elif page == "🔮 Revenue Forecast":
+    st.title("🔮 Revenue Forecast — Next 12 Months")
+    st.markdown("Facebook Prophet time-series forecasting model.")
+    st.markdown("---")
+
+    # Try loading pre-computed forecast
+    forecast_file = "forecast_next12months.csv"
+    eval_file     = "forecast_evaluation.csv"
+    metrics_file  = "model_metrics.csv"
+
+    pre_forecast = safe_read(forecast_file)
+    pre_eval     = safe_read(eval_file)
+    pre_metrics  = safe_read(metrics_file)
+
+    if not pre_forecast.empty:
+        # Show pre-computed results
+        if "ds" in pre_forecast.columns:
+            pre_forecast["ds"] = pd.to_datetime(pre_forecast["ds"])
+
+        st.markdown('<div class="section-header">Next 12 Months Forecast</div>', unsafe_allow_html=True)
+
+        if not pre_metrics.empty:
+            m = pre_metrics.iloc[0]
+            c1,c2,c3,c4 = st.columns(4)
+            for col, label, val in [
+                (c1, "MAE",       f"R${m.get('MAE',0):,.0f}"),
+                (c2, "RMSE",      f"R${m.get('RMSE',0):,.0f}"),
+                (c3, "R² Score",  f"{m.get('R2',0):.4f}"),
+                (c4, "Accuracy",  f"{m.get('Accuracy',0):.2f}%"),
+            ]:
+                with col:
+                    st.markdown(
+                        f'<div class="metric-card"><div class="metric-value">{val}</div>'
+                        f'<div class="metric-label">{label}</div></div>',
+                        unsafe_allow_html=True
+                    )
+            st.markdown("<br>", unsafe_allow_html=True)
+
+        # Forecast chart
+        fig, ax = plt.subplots(figsize=(14, 5), facecolor="#0f172a")
+        ax.set_facecolor("#0f172a")
+
+        if not monthly_rev.empty and "ds" in monthly_rev.columns:
+            ax.plot(monthly_rev["ds"], monthly_rev["y"],
+                    color=COLORS[0], linewidth=2, label="Historical Revenue")
+
+        ax.plot(pre_forecast["ds"], pre_forecast["yhat"],
+                color=COLORS[2], linewidth=2.5, linestyle="--", label="Forecast", zorder=3)
+        if "yhat_lower" in pre_forecast.columns:
+            ax.fill_between(pre_forecast["ds"], pre_forecast["yhat_lower"], pre_forecast["yhat_upper"],
+                            alpha=0.2, color=COLORS[2], label="95% CI")
+
+        if not monthly_rev.empty:
+            ax.axvline(monthly_rev["ds"].max(), color="gray", linestyle=":", linewidth=1.5, label="Forecast Start")
+
+        ax.set_title("Revenue Forecast — Next 12 Months", color="white", fontsize=13, fontweight="bold")
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x/1e6:.1f}M"))
+        ax.tick_params(colors="white")
+        for s in ax.spines.values(): s.set_color("#334155")
+        ax.legend(facecolor="#1e293b", labelcolor="white")
+        ax.grid(True, alpha=0.2)
+        st.pyplot(fig); plt.close(fig)
+
+        # Forecast table
+        st.markdown('<div class="section-header">Monthly Predictions</div>', unsafe_allow_html=True)
+        disp = pre_forecast.copy()
+        disp["Month"] = disp["ds"].dt.strftime("%b %Y")
+        disp = disp.rename(columns={"yhat":"Predicted","yhat_lower":"Lower Bound","yhat_upper":"Upper Bound"})
+        st.dataframe(
+            disp[["Month","Predicted","Lower Bound","Upper Bound"]]
+            .style.format({"Predicted":"R${:,.0f}","Lower Bound":"R${:,.0f}","Upper Bound":"R${:,.0f}"}),
+            use_container_width=True
+        )
+
+        total_pred = pre_forecast["yhat"].sum()
+        st.success(f"🎯 **Total Predicted Revenue (Next 12 Months): R${total_pred:,.0f}**")
+
+    else:
+        # Run Prophet live
+        st.info("Pre-computed forecast not found. Running Prophet model now — this may take ~30 seconds...")
+
+        if monthly_rev.empty or "ds" not in monthly_rev.columns or "y" not in monthly_rev.columns:
+            st.error("Monthly revenue data required to run forecast. Please ensure monthly_revenue.csv is present.")
+            st.stop()
+
+        try:
+            from prophet import Prophet
+            from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+            prophet_df = monthly_rev[["ds","y"]].copy().dropna()
+            prophet_df = prophet_df.sort_values("ds").reset_index(drop=True)
+
+            FORECAST_MONTHS = 12
+            TEST_MONTHS     = min(12, len(prophet_df) // 4)
+
+            train_df = prophet_df.iloc[:-TEST_MONTHS].copy()
+            test_df  = prophet_df.iloc[-TEST_MONTHS:].copy()
+
+            with st.spinner("Training Prophet model..."):
+                model = Prophet(
+                    yearly_seasonality=True,
+                    weekly_seasonality=False,
+                    daily_seasonality=False,
+                    seasonality_mode="multiplicative",
+                    changepoint_prior_scale=0.1,
+                    seasonality_prior_scale=10,
+                    interval_width=0.95,
+                )
+                try:
+                    model.add_country_holidays(country_name="BR")
+                except Exception:
+                    pass
+                model.fit(train_df)
+
+            test_future   = model.make_future_dataframe(periods=TEST_MONTHS, freq="MS")
+            test_forecast = model.predict(test_future)
+            test_pred     = test_forecast[["ds","yhat","yhat_lower","yhat_upper"]].tail(TEST_MONTHS).reset_index(drop=True)
+            test_actual   = test_df.reset_index(drop=True)
+
+            y_actual = test_actual["y"].values
+            y_pred   = test_pred["yhat"].values
+            mae      = mean_absolute_error(y_actual, y_pred)
+            rmse     = np.sqrt(mean_squared_error(y_actual, y_pred))
+            r2       = r2_score(y_actual, y_pred)
+            mape     = np.mean(np.abs((y_actual - y_pred) / y_actual)) * 100
+
+            # Final model on all data
+            with st.spinner("Generating 12-month forecast..."):
+                final_model = Prophet(
+                    yearly_seasonality=True, weekly_seasonality=False, daily_seasonality=False,
+                    seasonality_mode="multiplicative", changepoint_prior_scale=0.1,
+                    seasonality_prior_scale=10, interval_width=0.95,
+                )
+                try:
+                    final_model.add_country_holidays(country_name="BR")
+                except Exception:
+                    pass
+                final_model.fit(prophet_df)
+                future   = final_model.make_future_dataframe(periods=FORECAST_MONTHS, freq="MS")
+                forecast = final_model.predict(future)
+
+            future_forecast = forecast.tail(FORECAST_MONTHS)[["ds","yhat","yhat_lower","yhat_upper"]].copy()
+            future_forecast["yhat"]       = future_forecast["yhat"].clip(lower=0)
+            future_forecast["yhat_lower"] = future_forecast["yhat_lower"].clip(lower=0)
+            future_forecast["yhat_upper"] = future_forecast["yhat_upper"].clip(lower=0)
+
+            # Metrics
+            c1,c2,c3,c4 = st.columns(4)
+            for col, label, val in [
+                (c1, "MAE",       f"R${mae:,.0f}"),
+                (c2, "RMSE",      f"R${rmse:,.0f}"),
+                (c3, "R² Score",  f"{r2:.4f}"),
+                (c4, "Accuracy",  f"{100-mape:.2f}%"),
+            ]:
+                with col:
+                    st.markdown(
+                        f'<div class="metric-card"><div class="metric-value">{val}</div>'
+                        f'<div class="metric-label">{label}</div></div>',
+                        unsafe_allow_html=True
+                    )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # Chart
+            fig, ax = plt.subplots(figsize=(14, 5), facecolor="#0f172a")
+            ax.set_facecolor("#0f172a")
+            ax.plot(prophet_df["ds"], prophet_df["y"], color=COLORS[0], linewidth=2, label="Historical")
+            ax.plot(future_forecast["ds"], future_forecast["yhat"],
+                    color=COLORS[2], linewidth=2.5, linestyle="--", label="Forecast")
+            ax.fill_between(future_forecast["ds"], future_forecast["yhat_lower"], future_forecast["yhat_upper"],
+                            alpha=0.2, color=COLORS[2], label="95% CI")
+            ax.axvline(prophet_df["ds"].max(), color="gray", linestyle=":", linewidth=1.5)
+            ax.set_title(f"Revenue Forecast | Accuracy: {100-mape:.1f}% | R²: {r2:.4f}",
+                         color="white", fontsize=13, fontweight="bold")
+            ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x/1e6:.1f}M"))
+            ax.tick_params(colors="white")
+            for s in ax.spines.values(): s.set_color("#334155")
+            ax.legend(facecolor="#1e293b", labelcolor="white")
+            ax.grid(True, alpha=0.2)
+            st.pyplot(fig); plt.close(fig)
+
+            # Table
+            disp = future_forecast.copy()
+            disp["Month"] = disp["ds"].dt.strftime("%b %Y")
+            st.dataframe(
+                disp[["Month","yhat","yhat_lower","yhat_upper"]]
+                .rename(columns={"yhat":"Predicted","yhat_lower":"Lower","yhat_upper":"Upper"})
+                .style.format({"Predicted":"R${:,.0f}","Lower":"R${:,.0f}","Upper":"R${:,.0f}"}),
+                use_container_width=True
+            )
+            st.success(f"🎯 **Total Predicted Revenue (Next 12 Months): R${future_forecast['yhat'].sum():,.0f}**")
+
+            # Save for next time
+            try:
+                future_forecast.to_csv("forecast_next12months.csv", index=False)
+                st.info("Forecast saved to forecast_next12months.csv for faster loading next time.")
+            except Exception:
+                pass
+
+        except ImportError:
+            st.error("Prophet is not installed. Run: `pip install prophet`")
+        except Exception as e:
+            st.error(f"Forecast error: {e}")
+
+
+# ─────────────────────────────────────────────
+# ══ PAGE 6 — ML METRICS ════════════════════
+# ─────────────────────────────────────────────
+elif page == "🤖 ML Metrics":
+    st.title("🤖 ML Model Performance")
+    st.markdown("---")
+
+    # Correlation heatmap
+    st.markdown('<div class="section-header">Feature Correlation Heatmap</div>', unsafe_allow_html=True)
+    ml_cols = [c for c in [
+        "price","shipping_charges","item_revenue","delivery_days",
+        "approval_lag_hrs","order_month","order_quarter","order_day_of_week",
+        "payment_installments","product_weight_g","is_delivered","is_canceled"
+    ] if c in df.columns]
+
+    if len(ml_cols) >= 3:
+        corr_df = df[ml_cols].dropna()
+        corr_matrix = corr_df.corr()
+        fig, ax = plt.subplots(figsize=(12, 8), facecolor="#0f172a")
+        ax.set_facecolor("#0f172a")
+        sns.heatmap(
+            corr_matrix, annot=True, fmt=".2f", cmap="RdBu_r",
+            center=0, ax=ax, linewidths=0.5, annot_kws={"size":8},
+            cbar_kws={"shrink":0.8}
+        )
+        ax.set_title("Correlation Heatmap — ML Features", color="white", fontsize=13, fontweight="bold")
+        ax.tick_params(colors="white")
+        st.pyplot(fig); plt.close(fig)
+    else:
+        st.info("Not enough numeric columns for correlation analysis.")
+
+    # Forecast evaluation
+    eval_file = safe_read("forecast_evaluation.csv")
+    if not eval_file.empty:
+        st.markdown('<div class="section-header">Forecast Evaluation — Actual vs Predicted</div>', unsafe_allow_html=True)
+        if "ds" in eval_file.columns:
+            eval_file["ds"] = pd.to_datetime(eval_file["ds"])
+
+        fig, ax = plt.subplots(figsize=(12, 5), facecolor="#0f172a")
+        ax.set_facecolor("#0f172a")
+        x = range(len(eval_file))
+        ax.plot(x, eval_file.get("actual", []), color=COLORS[0], marker="o", linewidth=2, label="Actual")
+        ax.plot(x, eval_file.get("predicted", []), color=COLORS[2], marker="s",
+                linewidth=2, linestyle="--", label="Predicted")
+        if "ds" in eval_file.columns:
+            ax.set_xticks(list(x))
+            ax.set_xticklabels([d.strftime("%b %Y") for d in eval_file["ds"]], rotation=45, color="white")
+        ax.set_title("Actual vs Predicted Revenue (Test Set)", color="white", fontsize=12, fontweight="bold")
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"R${x/1e6:.1f}M"))
+        ax.tick_params(colors="white")
+        for s in ax.spines.values(): s.set_color("#334155")
+        ax.legend(facecolor="#1e293b", labelcolor="white")
+        ax.grid(True, alpha=0.2)
+        st.pyplot(fig); plt.close(fig)
+
+        st.dataframe(
+            eval_file.style.format({
+                "actual":"R${:,.0f}", "predicted":"R${:,.0f}",
+                "error":"R${:,.0f}", "error_pct":"{:.2f}%"
+            }),
+            use_container_width=True
+        )
+
+    # Metrics file
+    metrics_df = safe_read("model_metrics.csv")
+    if not metrics_df.empty:
+        st.markdown('<div class="section-header">Model Metrics Summary</div>', unsafe_allow_html=True)
+        m = metrics_df.iloc[0]
+        c1,c2,c3,c4,c5 = st.columns(5)
+        for col, label, val in [
+            (c1, "MAE",           f"R${m.get('MAE',0):,.0f}"),
+            (c2, "RMSE",          f"R${m.get('RMSE',0):,.0f}"),
+            (c3, "R² Score",      f"{m.get('R2',0):.4f}"),
+            (c4, "MAPE",          f"{m.get('MAPE_pct',0):.2f}%"),
+            (c5, "Accuracy",      f"{m.get('Accuracy',0):.2f}%"),
+        ]:
+            with col:
+                st.markdown(
+                    f'<div class="metric-card"><div class="metric-value">{val}</div>'
+                    f'<div class="metric-label">{label}</div></div>',
+                    unsafe_allow_html=True
+                )
+
+    st.markdown("---")
+    st.markdown("""
+    **Model:** Facebook Prophet  
+    **Type:** Time Series Forecasting  
+    **Training Data:** 2016 – 2025 monthly revenue  
+    **Forecast Horizon:** 12 months  
+    **Seasonality Mode:** Multiplicative  
+    **Holiday Calendar:** Brazil (BR)
+    """)
