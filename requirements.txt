@@ -1,0 +1,13 @@
+streamlit
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
+plotly
+prophet
+holidays
+convertdate
+lunarcalendar
+tqdm
+gdown
